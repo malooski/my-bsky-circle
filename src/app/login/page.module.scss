@@ -1,0 +1,13 @@
+.main {
+  width: 300px;
+  margin: 1rem auto;
+
+  display: flex;
+  flex-direction: column;
+}
+
+.loginForm {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1rem;
+}
