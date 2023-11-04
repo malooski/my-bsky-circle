@@ -122,13 +122,17 @@ export default async function Circle() {
     <main className={styles.main}>
       <a href="/">&lt; Back</a>
 
-      <h1>{me.data.handle}'s Circle</h1>
+      <h1>{me.data.handle}&apos;s Circle</h1>
       <p>Here are the users you interact with most.</p>
       <div className={styles.users}>
         {profiles.map((user, idx) => (
           <>
             <span className={styles.placement}>{idxToPlacement(idx)}</span>
-            <img className={styles.avatar} src={user.avatar ?? "#"} />
+            <img
+              alt={`Avatar for ${user.handle}`}
+              className={styles.avatar}
+              src={user.avatar ?? "#"}
+            />
             <span>{user.handle}</span>
           </>
         ))}
