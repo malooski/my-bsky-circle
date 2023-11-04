@@ -11,15 +11,44 @@ export default async function Login() {
 
   return (
     <main className={styles.main}>
+      <h1>Circle Generator</h1>
+
       <form className={styles.loginForm} action={login}>
         <label htmlFor="Username">Username</label>
-        <input defaultValue={username} type="text" name="Username" />
+        <input
+          placeholder="username.bsky.social"
+          defaultValue={username}
+          type="text"
+          name="Username"
+        />
 
         <label htmlFor="Password">Password</label>
-        <input defaultValue={password} type="password" name="Password" />
+        <input
+          placeholder="password"
+          defaultValue={password}
+          type="password"
+          name="Password"
+        />
 
         <button type="submit">Login</button>
       </form>
+
+      <p className={styles.note}>
+        Note: Use{" "}
+        <a
+          href="https://bsky.app/settings/app-passwords"
+          target="_blank"
+          rel="noreferrer"
+        >
+          App Passwords
+        </a>{" "}
+        for 3rd party services!
+        <br />
+        <br />
+        Credentials are stored in cookies in your browser.
+        <br />
+        Not on our servers.
+      </p>
     </main>
   );
 }

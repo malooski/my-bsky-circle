@@ -28,7 +28,10 @@ export default async function Home() {
     <main className={styles.main}>
       <span>Logged in as {me.data.handle}</span>
       <img src={myProfile.data.avatar ?? "#"} />
+
       <a href="/circle">Create My Circle!</a>
+
+      <a href="/login">Logout</a>
     </main>
   );
 }

@@ -6,9 +6,12 @@ import { cookies } from "next/headers";
 
 import { BskyAgent } from "@atproto/api";
 import { redirect } from "next/navigation";
-import { FeedViewPost } from "@atproto/api/dist/client/types/app/bsky/feed/defs";
-import { ProfileViewBasic } from "@atproto/api/dist/client/types/app/bsky/actor/defs";
-import { sortBy } from "lodash";
+import {
+  FeedViewPost,
+  PostView,
+} from "@atproto/api/dist/client/types/app/bsky/feed/defs";
+import { groupBy, sortBy } from "lodash";
+import { isNotNil } from "@/util";
 
 export default async function Circle() {
   const username = cookies().get("bsky-username")?.value;
@@ -25,50 +28,124 @@ export default async function Circle() {
     password: password,
   });
 
-  const authors = new Map<string, ProfileViewBasic>();
-  const myProfile = await agent.getProfile({ actor: me.data.did });
+  const likedPosts: FeedViewPost[] = [];
+  const repostedPosts: FeedViewPost[] = [];
+  const repliedPosts: PostView[] = [];
 
-  const commonProfiles = new Map<string, FeedViewPost[]>();
-  let cursor: string | undefined;
-  for (let i = 0; i < 20; i++) {
-    const response = await agent.getTimeline({
-      limit: 100,
-      cursor,
-    });
+  await Promise.all([
+    // Get all likes
+    (async () => {
+      let cursor: string | undefined;
+      let current = 0;
+      let max = 500;
+      while (current < max) {
+        const likesResp = await agent.getActorLikes({
+          actor: me.data.did,
+          limit: 100,
+          cursor,
+        });
 
-    for (const post of response.data.feed) {
-      const entry = commonProfiles.get(post.post.author.did) ?? [];
-      authors.set(post.post.author.did, post.post.author);
+        likedPosts.push(...likesResp.data.feed);
+        current += likesResp.data.feed.length;
+        cursor = likesResp.data.cursor;
 
-      entry.push(post);
+        if (likesResp.data.feed.length < 100) break;
+      }
+    })(),
 
-      commonProfiles.set(post.post.author.did, entry);
-    }
+    // Get all reposts and replies
+    (async () => {
+      let cursor: string | undefined;
+      let current = 0;
+      let max = 500;
 
-    if (response.data.feed.length < 100) {
-      break;
-    }
+      while (current < max) {
+        const resp = await agent.getAuthorFeed({
+          actor: me.data.did,
+          filter: "posts_with_replies",
+          limit: 100,
+        });
+        const onlyRts = resp.data.feed.filter(
+          (post) => post.post.author.did !== me.data.did
+        );
+        const onlyReplies = resp.data.feed
+          .map((post) => post.reply?.parent)
+          .filter(isNotNil)
+          .map((p) => p as PostView);
 
-    cursor = response.data.cursor;
+        repostedPosts.push(...onlyRts);
+        repliedPosts.push(...onlyReplies);
+
+        current += resp.data.feed.length;
+        cursor = resp.data.cursor;
+
+        if (resp.data.feed.length < 100) break;
+      }
+    })(),
+  ]);
+
+  const userScore = new Map<string, number>();
+
+  for (const post of likedPosts) {
+    const author = post.post.author.did;
+    const score = userScore.get(author) ?? 0;
+    userScore.set(author, score + 1);
   }
 
-  const mostPopularUsers = sortBy(
-    Array.from(commonProfiles.entries()),
-    ([did, posts]) => -1 * posts.length
-  ).map(([did, posts]) => authors.get(did)!);
+  for (const post of repostedPosts) {
+    const author = post.post.author.did;
+    const score = userScore.get(author) ?? 0;
+    userScore.set(author, score + 1);
+  }
+
+  for (const post of repliedPosts) {
+    const author = post.author.did;
+    const score = userScore.get(author) ?? 0;
+    userScore.set(author, score + 1);
+  }
+
+  // Remove self
+  userScore.delete(me.data.did);
+
+  const sortedProfileDids = sortBy(
+    Array.from(userScore.entries()),
+    ([_, score]) => -score
+  ).slice(0, 10);
+
+  const profilesResponse = await agent.getProfiles({
+    actors: sortedProfileDids.map(([did]) => did),
+  });
+
+  const profiles = profilesResponse.data.profiles;
 
   return (
     <main className={styles.main}>
-      <h1>Circle</h1>
-      <p>Here are the most talkative users on your feed.</p>
+      <a href="/">&lt; Back</a>
+
+      <h1>{me.data.handle}'s Circle</h1>
+      <p>Here are the users you interact with most.</p>
       <div className={styles.users}>
-        {mostPopularUsers.map((user) => (
-          <div key={user.did} className={styles.user}>
-            <img width="32px" height="32px" src={user.avatar ?? "#"} />
+        {profiles.map((user, idx) => (
+          <>
+            <span className={styles.placement}>{idxToPlacement(idx)}</span>
+            <img className={styles.avatar} src={user.avatar ?? "#"} />
             <span>{user.handle}</span>
-          </div>
+          </>
         ))}
       </div>
     </main>
   );
+}
+
+function idxToPlacement(idx: number) {
+  switch (idx) {
+    case 0:
+      return "🥇";
+    case 1:
+      return "🥈";
+    case 2:
+      return "🥉";
+    default:
+      return `${idx + 1}`;
+  }
 }
